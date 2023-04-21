@@ -1,2 +1,4 @@
 .DS_Store
-data/raw/
+
+# Exclude excessively large imdb files
+data/raw/imdb/
