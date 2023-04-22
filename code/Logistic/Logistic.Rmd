@@ -1,0 +1,220 @@
+---
+title: "512-Final Project"
+author: "LINLIN WANG"
+date: "2023-04-21"
+data-format: long
+format:
+  html:
+    toc: true
+    code-fold: true
+    embed-resources: true
+execute: 
+  echo: true
+  message: false
+  warning: false
+---
+
+## Data
+
+```{r}
+# library
+library(dplyr)
+library(ggplot2)
+library(plotly)
+library(tidyverse)
+```
+
+```{r}
+# Load the dataset
+mydata <- read.csv("../data/modified/films_gendered.csv", header = TRUE)
+head(mydata)
+```
+
+## Exploratory Data Analysis (EDA)
+
+We perform various EDA tasks on this dataset to better understand the data and gain insights. 
+
+```{r}
+# Group the data by Bechdel Test results
+bechdel_counts <- mydata %>%
+  group_by(bechdel_pass) %>%
+  summarize(count = n())
+
+# Calculate percentages
+total_movies <- sum(bechdel_counts$count)
+bechdel_counts <- bechdel_counts %>%
+  mutate(percentage = count / total_movies * 100)
+
+# Create the bar chart using plotly
+bar_chart <- plot_ly(data = bechdel_counts,
+        x = ~factor(bechdel_pass, labels = c("Fail", "Pass")),
+        y = ~count,
+        type = "bar",
+        text = ~count,
+        textposition = "outside",
+        marker = list(color = c("steelblue", "darkorange"))) %>%
+  layout(title = "Number of Movies by Bechdel Test Result",
+         xaxis = list(title = "Bechdel Test Result"),
+         yaxis = list(title = "Number of Movies"))
+# Add percentage text annotations at the top of each bar
+bar_chart_with_annotations <- bar_chart %>%
+  add_annotations(x = ~factor(bechdel_pass, labels = c("Fail", "Pass")),
+                  y = ~count * 0.9, # Adjust this value to position the text above the bars
+                  text = ~paste0(round(percentage, 1), "%"),
+                  showarrow = FALSE,
+                  font = list(size = 14))
+bar_chart_with_annotations
+```
+
+The bar chart shows the number of movies that pass and fail the Bechdel Test, along with their respective percentages. From the chart, we can see that 989 movies (55.2%) fail the Bechdel Test. This means that more than half of the movies in the dataset do not meet the criteria for the Bechdel Test. The failure could be due to a lack of female characters, female characters not talking to each other, or their conversations revolving around a man. However, 802 movies (44.8%) pass the Bechdel Test. This indicates that nearly 45% of the movies in the dataset do meet the Bechdel Test criteria. While this is a substantial proportion, it still suggests that there is room for improvement in terms of female representation and the portrayal of female characters in movies.
+
+```{r}
+# Remove rows with missing values in the relevant columns
+cleaned_data <- mydata %>%
+  filter(!is.na(pct_female_producers) & !is.na(pct_female_castmembers) & !is.na(pct_female_directors) & !is.na(pct_female_writers))
+
+# Calculate the mean percentage of females in each role
+female_representation <- cleaned_data %>%
+  summarize(pct_female_producers = mean(pct_female_producers),
+            pct_female_castmembers = mean(pct_female_castmembers),
+            pct_female_directors = mean(pct_female_directors),
+            pct_female_writers = mean(pct_female_writers))
+
+# Transform the data into a long format for easier plotting
+female_representation_long <- female_representation %>%
+  gather(key = "role", value = "percentage") %>%
+  mutate(role = factor(role, levels = c("pct_female_producers", "pct_female_castmembers", "pct_female_directors", "pct_female_writers"),
+                       labels = c("Producers", "Cast Members", "Directors", "Writers")))
+
+# Create the bar chart using ggplot2
+ggplot(female_representation_long, aes(x = role, y = percentage * 100, fill = role)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = paste0(round(percentage * 100, 1), "%")), vjust = -0.5) +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  labs(title = "Percentage of Female Representation in Different Roles",
+       x = "Role",
+       y = "Percentage of Females") +
+  scale_fill_manual(values = c("steelblue", "darkorange", "seagreen", "purple"))
+
+```
+
+This plot shows the percentage of female representation in different roles within the film industry, including producers, cast members, directors, and writers. We can notice that approximately 19.8% of producers are female and 36.9% of cast members are female. Female directors represent only 8.4% of the total. This disparity can limit the diversity of stories, perspectives, and creative visions that female directors might bring to the industry. Only 13.3% of writers are female, which highlights another area of underrepresentation. The results from this bar chart highlight the ongoing issue of gender inequality in various roles within the film industry.
+
+```{r}
+# Remove rows with missing values in the relevant columns
+cleaned_data <- mydata %>%
+  filter(!is.na(pct_female_producers) & !is.na(pct_female_castmembers) & !is.na(pct_female_directors) & !is.na(pct_female_writers))
+
+# Calculate the mean percentage of males in each role
+male_representation <- cleaned_data %>%
+  summarize(pct_male_producers = mean(1 - pct_female_producers),
+            pct_male_castmembers = mean(1 - pct_female_castmembers),
+            pct_male_directors = mean(1 - pct_female_directors),
+            pct_male_writers = mean(1 - pct_female_writers))
+
+# Transform the data into a long format for easier plotting
+male_representation_long <- male_representation %>%
+  gather(key = "role", value = "percentage") %>%
+  mutate(role = factor(role, levels = c("pct_male_producers", "pct_male_castmembers", "pct_male_directors", "pct_male_writers"),
+                       labels = c("Producers", "Cast Members", "Directors", "Writers")))
+
+# Create the bar chart using ggplot2
+ggplot(male_representation_long, aes(x = role, y = percentage * 100, fill = role)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = paste0(round(percentage * 100, 1), "%")), vjust = -0.5) +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  labs(title = "Percentage of Male Representation in Different Roles",
+       x = "Role",
+       y = "Percentage of Males") +
+  scale_fill_manual(values = c("steelblue", "darkorange", "seagreen", "purple"))
+
+```
+This plot shows the percentage of male representation in different roles within the film industry, including producers, cast members, directors, and writers. We can see that 80.2% producers, 63.1% cast members, 91.6% directors and 86.7% writers are male. 
+
+## Logistic Regression
+
+We want to explore whether having a higher percentage of females in these roles is associated with a higher likelihood of a movie meeting the criteria for passing the Bechdel Test.
+
+Data Science Question: 
+
+Does the percentage of female cast members, directors, and writers may influence a movie's probability of passing the Bechdel Test? 
+
+```{r}
+library(caret)
+cleaned_data <- mydata %>%
+  filter(!is.na(pct_female_castmembers) & !is.na(pct_female_directors) & !is.na(pct_female_writers) & !is.na(bechdel_pass)) %>%
+  mutate(bechdel_binary = ifelse(bechdel_pass == "True", 1, 0))
+
+# Create a function to plot the logistic regression line
+logistic_line <- function(x) {
+  exp(x) / (1 + exp(x))
+}
+
+# Plot the relationship between the percentage of female cast members and the Bechdel Test result
+p1 <- ggplot(cleaned_data, aes(x = pct_female_castmembers, y = bechdel_binary)) +
+  geom_point(alpha = 0.5) +
+  stat_function(fun = logistic_line, geom = "line", color = "red") +
+  labs(title = "Percentage of Female Cast Members vs. Bechdel Test Result",
+       x = "Percentage of Female Cast Members",
+       y = "Bechdel Test Result (1 = Pass, 0 = Fail)")
+
+# Plot the relationship between the percentage of female directors and the Bechdel Test result
+p2 <- ggplot(cleaned_data, aes(x = pct_female_directors, y = bechdel_binary)) +
+  geom_point(alpha = 0.5) +
+  stat_function(fun = logistic_line, geom = "line", color = "red") +
+  labs(title = "Percentage of Female Directors vs. Bechdel Test Result",
+       x = "Percentage of Female Directors",
+       y = "Bechdel Test Result (1 = Pass, 0 = Fail)")
+
+# Plot the relationship between the percentage of female writers and the Bechdel Test result
+p3 <- ggplot(cleaned_data, aes(x = pct_female_writers, y = bechdel_binary)) +
+  geom_point(alpha = 0.5) +
+  stat_function(fun = logistic_line, geom = "line", color = "red") +
+  labs(title = "Percentage of Female Writers vs. Bechdel Test Result",
+       x = "Percentage of Female Writers",
+       y = "Bechdel Test Result (1 = Pass, 0 = Fail)")
+
+# Display the plots
+p1
+p2
+p3
+```
+
+These plots display the relationship between the percentage of female cast members, directors, and writers and the Bechdel Test result, along with the logistic regression lines. 
+
+```{r}
+set.seed(42)  # Set a random seed for reproducibility
+trainIndex <- createDataPartition(cleaned_data$bechdel_binary, p = 0.8, list = FALSE, times = 1)
+train_data <- cleaned_data[trainIndex, ]
+test_data <- cleaned_data[-trainIndex, ]
+
+logistic_model <- glm(bechdel_binary ~ pct_female_castmembers + pct_female_directors + pct_female_writers,
+                      data = train_data, family = binomial(link = "logit"))
+summary(logistic_model)
+
+```
+The Residual deviance (846.8) is lower than the Null deviance (1099.5), which indicates that the model with the predictor variables provides a better fit to the data than the null model (intercept-only model).
+Overall, this model suggests that the percentage of female cast members and the percentage of female writers are significantly associated with the probability of a movie passing the Bechdel Test, while the percentage of female directors does not have a significant effect after accounting for the other predictors. 
+
+```{r}
+library(forcats)
+p_hat_logit <- predict(logistic_model, newdata = test_data, type = "response")
+
+y_hat_logit <- ifelse(p_hat_logit > 0.5, 1, 0) %>% factor
+y_hat_logit <- fct_explicit_na(y_hat_logit, na_level = "unknown")
+
+# Convert test_data$bechdel_binary to a factor and ensure the factor levels are the same
+test_data$bechdel_binary <- as.factor(test_data$bechdel_binary)
+test_data$bechdel_binary <- fct_explicit_na(test_data$bechdel_binary, na_level = "unknown")
+
+confusionMatrix(y_hat_logit, test_data$bechdel_binary)
+```
+Confusion Matrix result: 
+82 movies were correctly predicted to fail the Bechdel Test (TN)
+64 movies were correctly predicted to pass the Bechdel Test (TP)
+30 movies were incorrectly predicted to pass the Bechdel Test (FP)
+23 movies were incorrectly predicted to fail the Bechdel Test (FN)
+
+In summary, the logistic regression model achieved an accuracy of about 73.37% in predicting the Bechdel Test outcomes for the test data, with a moderate level of agreement (kappa = 0.4636). The model has similar sensitivity and specificity values, indicating a balanced performance in identifying both passing and failing movies. 
