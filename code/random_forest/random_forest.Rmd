@@ -1,0 +1,88 @@
+---
+title: "512 Final Project - Random Forest"
+author: "Mia Mayerhofer"
+date: "2023-04-21"
+output: html_document
+---
+
+```{r}
+# Load libraries
+library(randomForest)
+library(caTools)
+library(caret)
+```
+
+```{r}
+# Read in the data
+setwd("/Users/miamayerhofer/ANLY_512_Final_Project")
+data <- read.csv("data/modified/films_gendered.csv")
+```
+
+```{r}
+# View the data
+head(data)
+```
+
+```{r}
+# Make bechdel_pass col into factor
+data <- transform(data, bechdel_pass = as.factor(bechdel_pass))
+```
+
+```{r}
+# Get the number of NAs per column to decide whether or not to drop them
+colSums(is.na(data))
+```
+
+```{r}
+# Make a data frame without NAs
+data_no_nas <- data[complete.cases(data), ]
+dim(data_no_nas)
+```
+
+```{r}
+# Are all the titles unique?
+length(unique(data_no_nas$title_id)) # should be 858
+# Only select certain columns - remove title id, title name, and test
+subset_df <- data_no_nas[, c(-1, -2, -48)]
+```
+
+```{r}
+# Split into train and test
+set.seed(42)
+indices <- sample(nrow(subset_df), floor(nrow(subset_df) * 0.7))
+train <- subset_df[indices,]
+test <- subset_df[-indices,]
+dim(train)
+dim(test)
+```
+
+```{r}
+# Initialize the random forest model and train
+rf_model <- randomForest(
+  bechdel_pass ~ .,
+  data = train
+)
+```
+
+```{r}
+# Predict the test set Bechdel scores
+preds = predict(rf_model, newdata = test[-46])
+```
+
+```{r}
+# Confusion matrix
+confusionMatrix(preds, test$bechdel_pass)
+```
+
+```{r}
+# Get predictor importance
+pred_importance <- importance(rf_model)
+indices <- order(pred_importance[, "MeanDecreaseGini"], decreasing = TRUE)
+sorted_importance <- pred_importance[indices, ]
+sorted_importance
+```
+
+
+### References
+https://towardsdatascience.com/random-forest-in-r-f66adf80ec9
+
