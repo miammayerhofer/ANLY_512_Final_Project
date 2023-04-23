@@ -1,0 +1,609 @@
+---
+title: "512-Final Project"
+author: "Natalie Smith"
+data-format: long
+format:
+  html:
+    toc: true
+    code-fold: true
+    embed-resources: true
+execute: 
+  echo: true
+  message: false
+  warning: false
+---
+
+## Linear Regression on Movies Dataset
+
+### Setting up the data
+
+Libraries
+
+```{r}
+
+library(ggplot2)
+library(glmnet)
+library(dplyr)
+library(plotly)
+library(tidyr)
+library(caret)
+```
+
+Reading in the data
+
+Films gendered
+
+```{r}
+films.gendered = read.csv("../../data/modified/films_gendered.csv", header = TRUE)
+head(films.gendered)
+```
+
+
+
+Change bechdel False/True to Fail/Pass
+
+```{r}
+films.gendered$bechdel_pass = ifelse(films.gendered$bechdel_pass == "False", "Fail", "Pass")
+```
+
+### EDA
+
+#### Bechdel Test Results by Genre
+
+```{r, warning = FALSE}
+
+# summarize data to get the percentage of each genre by bechdel_pass
+films.gendered.summary <- films.gendered %>%
+  group_by(bechdel_pass) %>%
+  summarize_at(vars(genreComedy:genreAdult), funs(mean(.) * 100))
+
+# convert the data from wide to long format
+films.gendered.summary.long <- tidyr::gather(films.gendered.summary, genre, percent, -bechdel_pass)
+
+# plot the percentage of films by genre and bechdel_pass
+genreplot = ggplot(films.gendered.summary.long, aes(x = bechdel_pass, y = percent, fill = genre)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  ggtitle("Percentage of Films by Genre and Bechdel Pass/Fail") +
+  xlab("Bechdel Pass/Fail") +
+  ylab("Percentage of Films")+theme(legend.position = "none", plot.title = element_text(hjust=0.5))
+
+genreplot
+```
+Moving into individual percentage breakdowns:
+
+*Comedy*
+
+```{r, message=FALSE}
+films.gendered.summary = films.gendered %>%
+  filter(genreComedy == 1) %>%  # filter only rows where genreComedy = 1
+  group_by(genreComedy, bechdel_pass) %>%
+  summarize(n = n()) %>%
+  mutate(perc = n/sum(n) * 100)
+
+ggplot(films.gendered.summary, aes(x = bechdel_pass, y = perc, fill = bechdel_pass)) +
+  geom_bar(stat = "identity")+
+  scale_fill_manual(values = c("#de5454", "#67c989"), labels = c("Fail", "Pass")) +
+  labs(title = "Comedy Films: Bechdel Test Pass/Fail", x = "", y = "Percentage", fill = "") + theme(plot.title = element_text(hjust=0.5), legend.position = "none", axis.text = element_text(size = 14), axis.title.y = element_text(size = 16, margin = margin(t = 0, r = 20, b = 0, l = 0)), title = element_text(size = 16)) + geom_text(aes(label=paste0(round(perc, digits = 1),"%")), position=position_dodge(width=0.9), vjust=5, size = 12, color = "white")
+
+```
+
+*Action*
+
+```{r, message=FALSE}
+films.gendered.summary = films.gendered %>%
+  filter(genreAction == 1) %>%
+  group_by(genreAction, bechdel_pass) %>%
+  summarize(n = n()) %>%
+  mutate(perc = n/sum(n) * 100)
+
+ggplot(films.gendered.summary, aes(x = bechdel_pass, y = perc, fill = bechdel_pass)) +
+  geom_bar(stat = "identity")+
+  scale_fill_manual(values = c("#de5454", "#67c989"), labels = c("Fail", "Pass")) +
+  labs(title = "Action Films: Bechdel Test Pass/Fail", x = "", y = "Percentage", fill = "") + theme(plot.title = element_text(hjust=0.5), legend.position = "none", axis.text = element_text(size = 14), axis.title.y = element_text(size = 16, margin = margin(t = 0, r = 20, b = 0, l = 0)), title = element_text(size = 16)) + geom_text(aes(label=paste0(round(perc, digits = 1),"%")), position=position_dodge(width=0.9), vjust=5, size = 12, color = "white")
+```
+
+*Crime*
+
+```{r, message=FALSE}
+films.gendered.summary = films.gendered %>%
+  filter(genreCrime == 1) %>%
+  group_by(genreCrime, bechdel_pass) %>%
+  summarize(n = n()) %>%
+  mutate(perc = n/sum(n) * 100)
+
+ggplot(films.gendered.summary, aes(x = bechdel_pass, y = perc, fill = bechdel_pass)) +
+  geom_bar(stat = "identity")+
+  scale_fill_manual(values = c("#de5454", "#67c989"), labels = c("Fail", "Pass")) +
+  labs(title = "Crime Films: Bechdel Test Pass/Fail", x = "", y = "Percentage", fill = "") + theme(plot.title = element_text(hjust=0.5), legend.position = "none", axis.text = element_text(size = 14), axis.title.y = element_text(size = 16, margin = margin(t = 0, r = 20, b = 0, l = 0)), title = element_text(size = 16)) + geom_text(aes(label=paste0(round(perc, digits = 1),"%")), position=position_dodge(width=0.9), vjust=5, size = 12, color = "white")
+```
+
+*SciFi*
+
+```{r, message=FALSE}
+films.gendered.summary = films.gendered %>%
+  filter(genreSciFi == 1) %>%
+  group_by(genreSciFi, bechdel_pass) %>%
+  summarize(n = n()) %>%
+  mutate(perc = n/sum(n) * 100)
+
+ggplot(films.gendered.summary, aes(x = bechdel_pass, y = perc, fill = bechdel_pass)) +
+  geom_bar(stat = "identity")+
+  scale_fill_manual(values = c("#de5454", "#67c989"), labels = c("Fail", "Pass")) +
+  labs(title = "Sci-Fi Films: Bechdel Test Pass/Fail", x = "", y = "Percentage", fill = "") + theme(plot.title = element_text(hjust=0.5), legend.position = "none", axis.text = element_text(size = 14), axis.title.y = element_text(size = 16, margin = margin(t = 0, r = 20, b = 0, l = 0)), title = element_text(size = 16)) + geom_text(aes(label=paste0(round(perc, digits = 1),"%")), position=position_dodge(width=0.9), vjust=5, size = 12, color = "white")
+```
+
+*Biography*
+
+```{r, message=FALSE}
+films.gendered.summary = films.gendered %>%
+  filter(genreBiography == 1) %>%
+  group_by(genreBiography, bechdel_pass) %>%
+  summarize(n = n()) %>%
+  mutate(perc = n/sum(n) * 100)
+
+ggplot(films.gendered.summary, aes(x = bechdel_pass, y = perc, fill = bechdel_pass)) +
+  geom_bar(stat = "identity")+
+  scale_fill_manual(values = c("#de5454", "#67c989"), labels = c("Fail", "Pass")) +
+  labs(title = "Biography Films: Bechdel Test Pass/Fail", x = "", y = "Percentage", fill = "") + theme(plot.title = element_text(hjust=0.5), legend.position = "none", axis.text = element_text(size = 14), axis.title.y = element_text(size = 16, margin = margin(t = 0, r = 20, b = 0, l = 0)), title = element_text(size = 16)) + geom_text(aes(label=paste0(round(perc, digits = 1),"%")), position=position_dodge(width=0.9), vjust=5, size = 12, color = "white")
+```
+
+*Drama*
+
+```{r, message=FALSE}
+films.gendered.summary = films.gendered %>%
+  filter(genreDrama == 1) %>%
+  group_by(genreDrama, bechdel_pass) %>%
+  summarize(n = n()) %>%
+  mutate(perc = n/sum(n) * 100)
+
+ggplot(films.gendered.summary, aes(x = bechdel_pass, y = perc, fill = bechdel_pass)) +
+  geom_bar(stat = "identity")+
+  scale_fill_manual(values = c("#de5454", "#67c989"), labels = c("Fail", "Pass")) +
+  labs(title = "Drama Films: Bechdel Test Pass/Fail", x = "", y = "Percentage", fill = "") + theme(plot.title = element_text(hjust=0.5), legend.position = "none", axis.text = element_text(size = 14), axis.title.y = element_text(size = 16, margin = margin(t = 0, r = 20, b = 0, l = 0)), title = element_text(size = 16)) + geom_text(aes(label=paste0(round(perc, digits = 1),"%")), position=position_dodge(width=0.9), vjust=5, size = 12, color = "white")
+```
+
+
+*History*
+```{r, message=FALSE}
+films.gendered.summary = films.gendered %>%
+  filter(genreHistory == 1) %>%
+  group_by(genreHistory, bechdel_pass) %>%
+  summarize(n = n()) %>%
+  mutate(perc = n/sum(n) * 100)
+
+ggplot(films.gendered.summary, aes(x = bechdel_pass, y = perc, fill = bechdel_pass)) +
+  geom_bar(stat = "identity")+
+  scale_fill_manual(values = c("#de5454", "#67c989"), labels = c("Fail", "Pass")) +
+  labs(title = "History Films: Bechdel Test Pass/Fail", x = "", y = "Percentage", fill = "") + theme(plot.title = element_text(hjust=0.5), legend.position = "none", axis.text = element_text(size = 14), axis.title.y = element_text(size = 16, margin = margin(t = 0, r = 20, b = 0, l = 0)), title = element_text(size = 16)) + geom_text(aes(label=paste0(round(perc, digits = 1),"%")), position=position_dodge(width=0.9), vjust=5, size = 12, color = "white")
+```
+
+*Thriller*
+
+```{r, message=FALSE}
+films.gendered.summary = films.gendered %>%
+  filter(genreThriller == 1) %>%
+  group_by(genreThriller, bechdel_pass) %>%
+  summarize(n = n()) %>%
+  mutate(perc = n/sum(n) * 100)
+
+ggplot(films.gendered.summary, aes(x = bechdel_pass, y = perc, fill = bechdel_pass)) +
+  geom_bar(stat = "identity")+
+  scale_fill_manual(values = c("#de5454", "#67c989"), labels = c("Fail", "Pass")) +
+  labs(title = "Thriller Films: Bechdel Test Pass/Fail", x = "", y = "Percentage", fill = "") + theme(plot.title = element_text(hjust=0.5), legend.position = "none", axis.text = element_text(size = 14), axis.title.y = element_text(size = 16, margin = margin(t = 0, r = 20, b = 0, l = 0)), title = element_text(size = 16)) + geom_text(aes(label=paste0(round(perc, digits = 1),"%")), position=position_dodge(width=0.9), vjust=5, size = 12, color = "white")
+```
+
+*Sport*
+
+```{r, message=FALSE}
+films.gendered.summary = films.gendered %>%
+  filter(genreSport == 1) %>%
+  group_by(genreSport, bechdel_pass) %>%
+  summarize(n = n()) %>%
+  mutate(perc = n/sum(n) * 100)
+
+ggplot(films.gendered.summary, aes(x = bechdel_pass, y = perc, fill = bechdel_pass)) +
+  geom_bar(stat = "identity")+
+  scale_fill_manual(values = c("#de5454", "#67c989"), labels = c("Fail", "Pass")) +
+  labs(title = "Sport Films: Bechdel Test Pass/Fail", x = "", y = "Percentage", fill = "") + theme(plot.title = element_text(hjust=0.5), legend.position = "none", axis.text = element_text(size = 14), axis.title.y = element_text(size = 16, margin = margin(t = 0, r = 20, b = 0, l = 0)), title = element_text(size = 16)) + geom_text(aes(label=paste0(round(perc, digits = 1),"%")), position=position_dodge(width=0.9), vjust=5, size = 12, color = "white")
+```
+
+*Fantasy*
+
+```{r, message=FALSE}
+films.gendered.summary = films.gendered %>%
+  filter(genreFantasy == 1) %>%
+  group_by(genreFantasy, bechdel_pass) %>%
+  summarize(n = n()) %>%
+  mutate(perc = n/sum(n) * 100)
+
+ggplot(films.gendered.summary, aes(x = bechdel_pass, y = perc, fill = bechdel_pass)) +
+  geom_bar(stat = "identity")+
+  scale_fill_manual(values = c("#de5454", "#67c989"), labels = c("Fail", "Pass")) +
+  labs(title = "Fantasy Films: Bechdel Test Pass/Fail", x = "", y = "Percentage", fill = "") + theme(plot.title = element_text(hjust=0.5), legend.position = "none", axis.text = element_text(size = 14), axis.title.y = element_text(size = 16, margin = margin(t = 0, r = 20, b = 0, l = 0)), title = element_text(size = 16)) + geom_text(aes(label=paste0(round(perc, digits = 1),"%")), position=position_dodge(width=0.9), vjust=5, size = 12, color = "white")
+```
+
+*Romance*
+
+```{r, message=FALSE}
+films.gendered.summary = films.gendered %>%
+  filter(genreRomance == 1) %>%
+  group_by(genreRomance, bechdel_pass) %>%
+  summarize(n = n()) %>%
+  mutate(perc = n/sum(n) * 100)
+
+ggplot(films.gendered.summary, aes(x = bechdel_pass, y = perc, fill = bechdel_pass)) +
+  geom_bar(stat = "identity")+
+  scale_fill_manual(values = c("#de5454", "#67c989"), labels = c("Fail", "Pass")) +
+  labs(title = "Romance Films: Bechdel Test Pass/Fail", x = "", y = "Percentage", fill = "") + theme(plot.title = element_text(hjust=0.5), legend.position = "none", axis.text = element_text(size = 14), axis.title.y = element_text(size = 16, margin = margin(t = 0, r = 20, b = 0, l = 0)), title = element_text(size = 16)) + geom_text(aes(label=paste0(round(perc, digits = 1),"%")), position=position_dodge(width=0.9), vjust=5, size = 12, color = "white")
+```
+
+*Adventure*
+
+```{r, message=FALSE}
+films.gendered.summary = films.gendered %>%
+  filter(genreAdventure == 1) %>%
+  group_by(genreAdventure, bechdel_pass) %>%
+  summarize(n = n()) %>%
+  mutate(perc = n/sum(n) * 100)
+
+ggplot(films.gendered.summary, aes(x = bechdel_pass, y = perc, fill = bechdel_pass)) +
+  geom_bar(stat = "identity")+
+  scale_fill_manual(values = c("#de5454", "#67c989"), labels = c("Fail", "Pass")) +
+  labs(title = "Adventure Films: Bechdel Test Pass/Fail", x = "", y = "Percentage", fill = "") + theme(plot.title = element_text(hjust=0.5), legend.position = "none", axis.text = element_text(size = 14), axis.title.y = element_text(size = 16, margin = margin(t = 0, r = 20, b = 0, l = 0)), title = element_text(size = 16)) + geom_text(aes(label=paste0(round(perc, digits = 1),"%")), position=position_dodge(width=0.9), vjust=5, size = 12, color = "white")
+```
+
+*Horror*
+
+```{r, message=FALSE}
+films.gendered.summary = films.gendered %>%
+  filter(genreHorror == 1) %>%
+  group_by(genreHorror, bechdel_pass) %>%
+  summarize(n = n()) %>%
+  mutate(perc = n/sum(n) * 100)
+
+ggplot(films.gendered.summary, aes(x = bechdel_pass, y = perc, fill = bechdel_pass)) +
+  geom_bar(stat = "identity")+
+  scale_fill_manual(values = c("#de5454", "#67c989"), labels = c("Fail", "Pass")) +
+  labs(title = "Horror Films: Bechdel Test Pass/Fail", x = "", y = "Percentage", fill = "") + theme(plot.title = element_text(hjust=0.5), legend.position = "none", axis.text = element_text(size = 14), axis.title.y = element_text(size = 16, margin = margin(t = 0, r = 20, b = 0, l = 0)), title = element_text(size = 16)) + geom_text(aes(label=paste0(round(perc, digits = 1),"%")), position=position_dodge(width=0.9), vjust=5, size = 12, color = "white")
+```
+
+*Animation*
+
+```{r, message=FALSE}
+films.gendered.summary = films.gendered %>%
+  filter(genreAnimation == 1) %>%
+  group_by(genreAnimation, bechdel_pass) %>%
+  summarize(n = n()) %>%
+  mutate(perc = n/sum(n) * 100)
+
+ggplot(films.gendered.summary, aes(x = bechdel_pass, y = perc, fill = bechdel_pass)) +
+  geom_bar(stat = "identity")+
+  scale_fill_manual(values = c("#de5454", "#67c989"), labels = c("Fail", "Pass")) +
+  labs(title = "Animation Films: Bechdel Test Pass/Fail", x = "", y = "Percentage", fill = "") + theme(plot.title = element_text(hjust=0.5), legend.position = "none", axis.text = element_text(size = 14), axis.title.y = element_text(size = 16, margin = margin(t = 0, r = 20, b = 0, l = 0)), title = element_text(size = 16)) + geom_text(aes(label=paste0(round(perc, digits = 1),"%")), position=position_dodge(width=0.9), vjust=5, size = 12, color = "white")
+```
+
+*Mystery*
+
+```{r, message=FALSE}
+films.gendered.summary = films.gendered %>%
+  filter(genreMystery == 1) %>%
+  group_by(genreMystery, bechdel_pass) %>%
+  summarize(n = n()) %>%
+  mutate(perc = n/sum(n) * 100)
+
+ggplot(films.gendered.summary, aes(x = bechdel_pass, y = perc, fill = bechdel_pass)) +
+  geom_bar(stat = "identity")+
+  scale_fill_manual(values = c("#de5454", "#67c989"), labels = c("Fail", "Pass")) +
+  labs(title = "Mystery Films: Bechdel Test Pass/Fail", x = "", y = "Percentage", fill = "") + theme(plot.title = element_text(hjust=0.5), legend.position = "none", axis.text = element_text(size = 14), axis.title.y = element_text(size = 16, margin = margin(t = 0, r = 20, b = 0, l = 0)), title = element_text(size = 16)) + geom_text(aes(label=paste0(round(perc, digits = 1),"%")), position=position_dodge(width=0.9), vjust=5, size = 12, color = "white")
+```
+
+*Family*
+
+```{r, message=FALSE}
+films.gendered.summary = films.gendered %>%
+  filter(genreFamily == 1) %>%
+  group_by(genreFamily, bechdel_pass) %>%
+  summarize(n = n()) %>%
+  mutate(perc = n/sum(n) * 100)
+
+ggplot(films.gendered.summary, aes(x = bechdel_pass, y = perc, fill = bechdel_pass)) +
+  geom_bar(stat = "identity")+
+  scale_fill_manual(values = c("#de5454", "#67c989"), labels = c("Fail", "Pass")) +
+  labs(title = "Family Films: Bechdel Test Pass/Fail", x = "", y = "Percentage", fill = "") + theme(plot.title = element_text(hjust=0.5), legend.position = "none", axis.text = element_text(size = 14), axis.title.y = element_text(size = 16, margin = margin(t = 0, r = 20, b = 0, l = 0)), title = element_text(size = 16)) + geom_text(aes(label=paste0(round(perc, digits = 1),"%")), position=position_dodge(width=0.9), vjust=5, size = 12, color = "white")
+```
+
+*War*
+
+```{r, message=FALSE}
+films.gendered.summary = films.gendered %>%
+  filter(genreWar == 1) %>%
+  group_by(genreWar, bechdel_pass) %>%
+  summarize(n = n()) %>%
+  mutate(perc = n/sum(n) * 100)
+
+ggplot(films.gendered.summary, aes(x = bechdel_pass, y = perc, fill = bechdel_pass)) +
+  geom_bar(stat = "identity")+
+  scale_fill_manual(values = c("#de5454", "#67c989"), labels = c("Fail", "Pass")) +
+  labs(title = "War Films: Bechdel Test Pass/Fail", x = "", y = "Percentage", fill = "") + theme(plot.title = element_text(hjust=0.5), legend.position = "none", axis.text = element_text(size = 14), axis.title.y = element_text(size = 16, margin = margin(t = 0, r = 20, b = 0, l = 0)), title = element_text(size = 16)) + geom_text(aes(label=paste0(round(perc, digits = 1),"%")), position=position_dodge(width=0.9), vjust=5, size = 12, color = "white")
+```
+
+*Western*
+
+```{r, message=FALSE}
+films.gendered.summary = films.gendered %>%
+  filter(genreWestern == 1) %>%
+  group_by(genreWestern, bechdel_pass) %>%
+  summarize(n = n()) %>%
+  mutate(perc = n/sum(n) * 100)
+
+ggplot(films.gendered.summary, aes(x = bechdel_pass, y = perc, fill = bechdel_pass)) +
+  geom_bar(stat = "identity")+
+  scale_fill_manual(values = c("#de5454", "#67c989"), labels = c("Fail", "Pass")) +
+  labs(title = "Westerns: Bechdel Test Pass/Fail", x = "", y = "Percentage", fill = "") + theme(plot.title = element_text(hjust=0.5), legend.position = "none", axis.text = element_text(size = 16), axis.title.y = element_text(size = 18, margin = margin(t = 0, r = 20, b = 0, l = 0)), title = element_text(size = 18)) + geom_text(aes(label=paste0(round(perc, digits = 1),"%")), position=position_dodge(width=0.9), vjust=2, size = 12, color = "white")
+```
+
+*Musical*
+
+```{r, message=FALSE}
+films.gendered.summary = films.gendered %>%
+  filter(genreMusical == 1) %>%
+  group_by(genreMusical, bechdel_pass) %>%
+  summarize(n = n()) %>%
+  mutate(perc = n/sum(n) * 100)
+
+ggplot(films.gendered.summary, aes(x = bechdel_pass, y = perc, fill = bechdel_pass)) +
+  geom_bar(stat = "identity")+
+  scale_fill_manual(values = c("#de5454", "#67c989"), labels = c("Fail", "Pass")) +
+  labs(title = "Musicals: Bechdel Test Pass/Fail", x = "", y = "Percentage", fill = "") + theme(plot.title = element_text(hjust=0.5), legend.position = "none", axis.text = element_text(size = 16), axis.title.y = element_text(size = 18, margin = margin(t = 0, r = 20, b = 0, l = 0)), title = element_text(size = 18)) + geom_text(aes(label=paste0(round(perc, digits = 1),"%")), position=position_dodge(width=0.9), vjust=2, size = 12, color = "white")
+```
+
+*Music*
+
+```{r, message=FALSE}
+films.gendered.summary = films.gendered %>%
+  filter(genreMusic == 1) %>%
+  group_by(genreMusic, bechdel_pass) %>%
+  summarize(n = n()) %>%
+  mutate(perc = n/sum(n) * 100)
+
+ggplot(films.gendered.summary, aes(x = bechdel_pass, y = perc, fill = bechdel_pass)) +
+  geom_bar(stat = "identity")+
+  scale_fill_manual(values = c("#de5454", "#67c989"), labels = c("Fail", "Pass")) +
+  labs(title = "Music Films: Bechdel Test Pass/Fail", x = "", y = "Percentage", fill = "") + theme(plot.title = element_text(hjust=0.5), legend.position = "none", axis.text = element_text(size = 14), axis.title.y = element_text(size = 16, margin = margin(t = 0, r = 20, b = 0, l = 0)), title = element_text(size = 16)) + geom_text(aes(label=paste0(round(perc, digits = 1),"%")), position=position_dodge(width=0.9), vjust=5, size = 12, color = "white")
+```
+
+*Documentary*
+
+```{r, message=FALSE}
+films.gendered.summary = films.gendered %>%
+  filter(genreDocumentary == 1) %>%
+  group_by(genreDocumentary, bechdel_pass) %>%
+  summarize(n = n()) %>%
+  mutate(perc = n/sum(n) * 100)
+
+ggplot(films.gendered.summary, aes(x = bechdel_pass, y = perc, fill = bechdel_pass)) +
+  geom_bar(stat = "identity")+
+  scale_fill_manual(values = c("#de5454", "#67c989"), labels = c("Fail", "Pass")) +
+  labs(title = "Documentary Films: Bechdel Test Pass/Fail", x = "", y = "Percentage", fill = "") + theme(plot.title = element_text(hjust=0.5), legend.position = "none", axis.text = element_text(size = 14), axis.title.y = element_text(size = 16, margin = margin(t = 0, r = 20, b = 0, l = 0)), title = element_text(size = 16)) + geom_text(aes(label=paste0(round(perc, digits = 1),"%")), position=position_dodge(width=0.9), vjust=5, size = 12, color = "white")
+```
+### Linear Regression: What variables influence the number of female directors on a movie? What variables influence the number of female castmembers? What variables influence the number of female writers?
+
+Cleaning dataframe by removing nonfinite rows
+
+```{r}
+nonfinite = !complete.cases(films.gendered)
+
+films.gendered = films.gendered[!nonfinite, ]
+```
+
+
+
+I need to create dummy variables for Bechdel "Pass" and Bechdel "Fail" to perform linear regression.
+
+1 will represent "Pass", and 0 will represent "Fail"
+
+```{r}
+
+films.gendered$bechdel_pass = as.numeric(films.gendered$bechdel_pass == "Pass")
+```
+
+Remove variables that we do not need:
+- Titles are too unique, and will skew the results
+- pct_female_directors, pct_female_writers, pct_female_producers, pct_female_castmembers will also be removed, as they are redundant with the number of female directors, writers, producers, and castmembers that are already in the dataset. 
+
+```{r}
+films.gendered = subset(films.gendered, select = c(-title_id, -primaryTitle, -pct_female_producers, -pct_female_castmembers, -pct_female_directors, -pct_female_writers))
+```
+
+Train Test Split - 0.8 train, 0.2 test
+
+```{r}
+set.seed(73)
+
+train = sample(length(films.gendered[,1]), .8*length(films.gendered[,1]))
+
+```
+
+#### Linear Model: Predicting Number of Female Directors
+
+```{r}
+
+full.model = lm(num_female_directors ~ ., data = films.gendered[train,])
+
+summary(full.model)
+```
+As seen from the results of the model summary above, the total number of directors, the number of female writers, the number of total writers, and the movie genre of Thriller are all very significant predictors of the number of female directors in a movie. Interestingly enough, the variable with the greatest effect on the model is the number of female writers, as it has the highest t-value. Interestingly as well, the number of total writers, not including female writers specifically, as well as the movie genre being a Thriller actually have a negative effect on the number of female directors for a movie. 
+
+However, we can see that the model performs extremely poorly, with an adjusted R-Squared of 0.1919. This is likely due to the fact that there are so few female directors, as women make up only 8.4% of all directors. Even when looking at the linear regression model plot below, we can see that even the best predictor of number of female writers performs poorly at predicting the number of female directors. 
+
+
+```{r, message=FALSE}
+ggplot(films.gendered[train,], aes(x = num_female_writers, y = num_female_directors)) + 
+  geom_point() +
+  stat_smooth(method = "lm", col = "red")+xlab("Number of Female Writers")+ylab("Number of Female Directors")+ggtitle("Can the Number of Female Writers Predict the Number of Female Directors?")+theme(plot.title = element_text(hjust = 0.5))
+```
+
+Below, we can see that the RMSE for the model is 0.249. Overall, it does not seem like the number of female directors can be predicted with the current data.
+
+```{r}
+full.model.pred = predict.lm(full.model, newdata = films.gendered[-train,])
+err.lm = sqrt(mean((films.gendered$num_female_directors[-train] - full.model.pred)^2))
+
+paste0("RMSE: ", round(err.lm,3))
+```
+
+
+#### Linear Model: Predicting Number of Female Writers
+
+```{r}
+full.model.2 = lm(num_female_writers ~ ., data = films.gendered[train,])
+
+summary(full.model.2)
+```
+
+Based on the results of the model above, the total number of writers, the number of female directors, the number of female castmembers, and a Romance movie genre all have a positive effect on the number of female writers in a movie. On the other hand, movies belonging to the Horror genre have a negative effect on the number of female writers in a movie. The number of female directors has the strongest effect on the model.
+
+However, once again, we can see that the model performs extremely poorly, with an adjusted R-Squared of 0.2867. As was the case with the number of female directors, this is likely caused by the fact that there are also so few female writers, as they only make up 13.3% of all movie writers.
+
+Looking again the the linear regression plot of the ability of the number of female directors to predict the number of female writers, we can see that even though it is the strongest predictor, it is still poor at predicting the correct number. 
+
+```{r, message=FALSE}
+ggplot(films.gendered[train,], aes(x = num_female_directors, y = num_female_writers)) + 
+  geom_point() +
+  stat_smooth(method = "lm", col = "red")+xlab("Number of Female Directors")+ylab("Number of Female Writers")+ggtitle("Can the Number of Female Directors Predict the Number of Female Writers?")+theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+
+Below, we can see that the RMSE for the model is 0.448. Overall, it is a slight improvement, but is still a bad model. 
+
+```{r, warning=FALSE}
+full.model.pred.2 = predict.lm(full.model.2, newdata = films.gendered[-train,])
+err.lm.2 = sqrt(mean((films.gendered$num_female_writers[-train] - full.model.pred.2)^2))
+
+paste0("RMSE: ", round(err.lm.2,3))
+```
+
+#### Linear Model: Predicting Number of Female Castmembers
+
+```{r}
+full.model.3 = lm(num_female_castmembers ~ ., data = films.gendered[train,])
+
+summary(full.model.3)
+```
+
+Based on the results of the model above, passing the Bechdel Test ("testok" or test = "ok") and the number of female writers have very significant positive effects on the number of female castmembers in a movie. Movies without women ("testnowomen" or test = "nowomen") and movies of the "History" genre have significant negative effects on the number of female castmembers.
+
+This model is slightly better than the previous models, but still performs poorly with an adjusted R-Squared of 0.3496. It is possible that this is also due to a relatively smaller number of female castmembers (36.9%) when compared to male cast members. It is also possible that a greater sample size would see model performance improvements. 
+
+
+Once again, we can look at the linear regression plot comparing the Bechdel Test score against the number of female castmembers.
+
+
+```{r, message=FALSE}
+ggplot(films.gendered[train,], aes(x = test, y = num_female_castmembers, color=test)) + 
+  geom_point(size = 3) +
+  stat_smooth(method = "lm", col = "red")+xlab("Bechdel Test Score")+ylab("Number of Female Cast Members")+ggtitle("Can Bechdel Test Score Predict the Number of Female Cast Members?")+theme(plot.title = element_text(hjust = 0.5), legend.position = "none")+scale_color_manual(values = c("black", "black", "black", "black", "red"))
+
+```
+
+
+```{r, warning=FALSE}
+full.model.pred.3 = predict.lm(full.model.3, newdata = films.gendered[-train,])
+err.lm.3 = sqrt(mean((films.gendered$num_female_castmembers[-train] - full.model.pred.3)^2))
+
+paste0("RMSE: ", round(err.lm.3,3))
+```
+
+The RMSE as seen above has improved quite a bit from the previous models even though the Adjusted $R^2$ hasn't improved much. 
+
+
+### Ridge Regression: Number of Female Cast Members
+
+Because the linear model predicting the number of female cast members in a movie was the best performing model, I am going to perform ridge regression on the model.
+
+Below is ridge regression plot that plots the test MSE as a function of the log($\lambda$).
+
+```{r}
+ridge.model = model.matrix(num_female_castmembers ~ ., data = films.gendered)
+
+ridge.train = ridge.model[train,]
+ridge.predict = ridge.model[-train,]
+y = films.gendered$num_female_castmembers[train]
+
+
+cv.ridge= cv.glmnet(ridge.train, y,alpha=0, lambda.min.ratio = 0.000001)
+cv.ridgesum = summary(cv.ridge)
+plot(cv.ridge)
+```
+
+Now, the optimal lambda value can be found. Below, we can see that the optimal value is 0.2866.
+
+```{r}
+optimal.lambda = cv.ridge$lambda.min
+paste0("Optimal Lambda: ", round(optimal.lambda, 4))
+```
+
+
+Based on the ridge regression plot, I will select 1 as the optimal value of lambda for this model as selected by the above cross-validation procedure.
+
+Below, we can see the non-zero coefficients for this ridge regression model. 
+
+```{r}
+tmp_coeffs = coef(cv.ridge, s = cv.ridge$lambda[1])
+data.frame(name=tmp_coeffs@Dimnames[[1]][tmp_coeffs@i+1], coefficient = tmp_coeffs@x)
+
+```
+
+Using the optimal lambda of 0.286, I will fit a new ridge regression model. The result of the test error is 0.689, which is practically the same as the original testing error for the linear model predicting the number of female cast members before regularization.
+
+```{r}
+new.ridge.mod = model.matrix(num_female_castmembers ~ ., data = films.gendered[-train,])
+
+ridge.fit = glmnet(ridge.train, y, alpha = 0, lambda = optimal.lambda)
+
+ridge.pred = predict(ridge.fit, newx = ridge.predict)
+
+test_error = sqrt(mean((films.gendered$num_female_castmembers[-train] - ridge.pred)^2))
+paste0("Test Error: ", round(test_error,4))
+```
+
+
+Below is the comparison between the two models, original linear model and ridge regression model. Overall, they are almost the exact same, and both models are not particulary good at predicting the number of female cast members.
+
+```{r}
+library(knitr)
+library(kableExtra)
+Model = c("Linear Regression", "Ridge Regression")
+Error = c(err.lm.3, test_error)
+
+err.df = data.frame(Model, Error)
+kable(err.df, caption = "Test Error: Predicting Number of Female Cast Members")%>%
+  kable_styling(bootstrap_options = "striped", full_width = F) %>% column_spec(2, width = "6cm")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
