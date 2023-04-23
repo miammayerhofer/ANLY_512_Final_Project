@@ -10,6 +10,7 @@ output: html_document
 library(randomForest)
 library(caTools)
 library(caret)
+library(reprtree)
 ```
 
 ```{r}
@@ -56,22 +57,45 @@ dim(train)
 dim(test)
 ```
 
+### Random Forest Classification
+
 ```{r}
-# Initialize the random forest model and train
+# Initialize a baseline random forest model and train
+set.seed(42)
 rf_model <- randomForest(
   bechdel_pass ~ .,
-  data = train
+  data = train,
+  ntree = 1000
 )
 ```
 
 ```{r}
 # Predict the test set Bechdel scores
-preds = predict(rf_model, newdata = test[-46])
+preds <- predict(rf_model, newdata = test[-46])
 ```
 
 ```{r}
 # Confusion matrix
 confusionMatrix(preds, test$bechdel_pass)
+```
+```{r}
+# Plot confusion matrix
+cm <- confusionMatrix(factor(preds), factor(test$bechdel_pass), dnn = c("Prediction", "Reference"))
+
+plt <- as.data.frame(cm$table)
+plt$Prediction <- factor(plt$Prediction, levels=rev(levels(plt$Prediction)))
+
+ggplot(plt, aes(Prediction,Reference, fill= Freq)) +
+        geom_tile() + geom_text(aes(label=Freq)) +
+        scale_fill_gradient(low="white", high="navy") +
+        labs(x = "Actual Bechdel Result", y = "Predicted Bechdel Result") +
+        scale_x_discrete(labels=c("True","False","True","False")) +
+        scale_y_discrete(labels=c("False","True","False","True"))
+```
+
+```{r}
+# Plot a tree from the forest
+reprtree:::plot.getTree(rf_model)
 ```
 
 ```{r}
@@ -82,7 +106,55 @@ sorted_importance <- pred_importance[indices, ]
 sorted_importance
 ```
 
+```{r}
+# Make a plot showing this importance
+plot_data <- as.data.frame(sorted_importance)
+plot_data$predictor <- row.names(plot_data)
+
+ggplot(plot_data, aes(x = reorder(predictor, sorted_importance), y = sorted_importance)) +
+  geom_bar(stat = "identity") + coord_flip() +   
+  labs(title = "Importance of Predictors of Bechdel Test Result",
+       x = "Predictor",
+       y = "Importance")
+```
+
+
+### Random Forest Classification Subset
+
+```{r}
+# Subset the data
+names <- c("pct_female_producers", "pct_female_castmembers", "pct_female_directors", "pct_female_writers", "bechdel_pass")
+train_subset <- train[, names]
+test_subset <- test[, names]
+```
+
+```{r}
+# Define the model
+rf_model2 <- randomForest(bechdel_pass ~ ., data = train_subset, ntree = 1000)
+# Predict the budget on the test set
+preds2 <- predict(rf_model2, newdata = test_subset[-5])
+# Plot a tree
+reprtree:::plot.getTree(rf_model2)
+# Confusion matrix
+confusionMatrix(preds2, test_subset$bechdel_pass)
+```
+
+```{r}
+# Plot confusion matrix
+cm <- confusionMatrix(factor(preds2), factor(test_subset$bechdel_pass), dnn = c("Prediction", "Reference"))
+
+plt <- as.data.frame(cm$table)
+plt$Prediction <- factor(plt$Prediction, levels=rev(levels(plt$Prediction)))
+
+ggplot(plt, aes(Prediction,Reference, fill= Freq)) +
+        geom_tile() + geom_text(aes(label=Freq)) +
+        scale_fill_gradient(low="white", high="navy") +
+        labs(x = "Actual Bechdel Result", y = "Predicted Bechdel Result") +
+        scale_x_discrete(labels=c("True","False","True","False")) +
+        scale_y_discrete(labels=c("False","True","False","True"))
+```
 
 ### References
 https://towardsdatascience.com/random-forest-in-r-f66adf80ec9
 
+https://github.com/araastat/reprtree/issues/12
